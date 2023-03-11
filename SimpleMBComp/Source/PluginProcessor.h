@@ -71,6 +71,7 @@ private:
 	AudioParameterFloat* release{ nullptr };
 	AudioParameterFloat* threshold{ nullptr };
 	AudioParameterChoice* ratio{ nullptr };
+	AudioParameterBool* bypassed{ nullptr };
 	//==============================================================================
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SimpleMBCompAudioProcessor)
 };
