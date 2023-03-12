@@ -13,6 +13,40 @@
 using namespace juce;
 using namespace dsp;
 
+struct CompressorBand
+{
+	AudioParameterFloat* attack{ nullptr };
+	AudioParameterFloat* release{ nullptr };
+	AudioParameterFloat* threshold{ nullptr };
+	AudioParameterChoice* ratio{ nullptr };
+	AudioParameterBool* bypassed{ nullptr };
+
+	void prepare(const ProcessSpec& spec)
+	{
+		compressor.prepare(spec);
+	}
+
+	void updateCompressorSettings()
+	{
+		compressor.setAttack(attack->get());
+		compressor.setRelease(release->get());
+		compressor.setThreshold(threshold->get());
+		compressor.setRatio(ratio->getCurrentChoiceName().getFloatValue());
+	}
+
+	void process(AudioBuffer<float>& buffer)
+	{
+		auto block = AudioBlock<float>(buffer);
+		auto context = ProcessContextReplacing<float>(block);
+
+		context.isBypassed = bypassed->get();
+		compressor.process(context);
+	}
+private:
+	Compressor<float> compressor;
+
+};
+
 //==============================================================================
 /**
 */
@@ -65,13 +99,7 @@ public:
 
 private:
 
-	Compressor<float> compressor;
-
-	AudioParameterFloat* attack{ nullptr };
-	AudioParameterFloat* release{ nullptr };
-	AudioParameterFloat* threshold{ nullptr };
-	AudioParameterChoice* ratio{ nullptr };
-	AudioParameterBool* bypassed{ nullptr };
+	CompressorBand compressor;
 	//==============================================================================
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SimpleMBCompAudioProcessor)
 };
