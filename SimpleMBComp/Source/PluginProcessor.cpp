@@ -52,6 +52,12 @@ SimpleMBCompAudioProcessor::SimpleMBCompAudioProcessor()
 	};
 
 	boolHelper(compressor.bypassed, Names::Bypassed_Low_Band);
+
+	floatHelper(lowCrossover, Names::Low_Mid_Crossover_Freq);
+
+	LP.setType(LinkwitzRileyFilterType::lowpass);
+	HP.setType(LinkwitzRileyFilterType::highpass);
+	AP.setType(LinkwitzRileyFilterType::allpass);
 }
 
 SimpleMBCompAudioProcessor::~SimpleMBCompAudioProcessor() {}
@@ -117,6 +123,19 @@ void SimpleMBCompAudioProcessor::prepareToPlay(double sampleRate,
 	spec.sampleRate = sampleRate;
 
 	compressor.prepare(spec);
+
+	LP.prepare(spec);
+	HP.prepare(spec);
+	AP.prepare(spec);
+
+	apBuffer.setSize(spec.numChannels, samplesPerBlock);
+
+	for (auto& buffer : filterBuffers)
+	{
+		buffer.setSize(spec.numChannels, samplesPerBlock);
+	}
+
+
 }
 
 void SimpleMBCompAudioProcessor::releaseResources() {
@@ -165,8 +184,57 @@ void SimpleMBCompAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 	for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
 		buffer.clear(i, 0, buffer.getNumSamples());
 
-	compressor.updateCompressorSettings();
-	compressor.process(buffer);
+	//compressor.updateCompressorSettings();
+	//compressor.process(buffer);
+
+	for (auto& fb : filterBuffers)
+	{
+		fb = buffer;
+	}
+
+	auto cutoff = lowCrossover->get();
+	LP.setCutoffFrequency(cutoff);
+	HP.setCutoffFrequency(cutoff);
+
+	auto fb0Block = AudioBlock<float>(filterBuffers[0]);
+	auto fb1Block = AudioBlock<float>(filterBuffers[1]);
+
+	auto fb0Ctx = ProcessContextReplacing<float>(fb0Block);
+	auto fb1Ctx = ProcessContextReplacing<float>(fb1Block);
+
+	LP.process(fb0Ctx);
+	HP.process(fb1Ctx);
+
+	auto numSamples = buffer.getNumSamples();
+	auto numChannels = buffer.getNumChannels();
+
+	apBuffer = buffer;
+	auto apBlock = AudioBlock<float>(apBuffer);
+	auto apCtx = ProcessContextReplacing<float>(apBlock);
+	AP.process(apCtx);
+
+	buffer.clear();
+
+	auto addFilterBand = [nc = numChannels, ns = numSamples](auto& inputBuffer, const auto& source)
+	{
+		for (auto i = 0; i < nc; ++i)
+		{
+			inputBuffer.addFrom(i, 0, source, i, 0, ns);
+		}
+	};
+
+	/*if (!compressor.bypassed->get())
+	{
+		addFilterBand(buffer, filterBuffers[0]);
+		addFilterBand(buffer, filterBuffers[1]);
+	}
+	else
+	{
+		addFilterBand(buffer, apBuffer);
+	}*/
+
+	addFilterBand(buffer, filterBuffers[0]);
+	addFilterBand(buffer, filterBuffers[1]);
 }
 
 //==============================================================================
@@ -246,6 +314,12 @@ SimpleMBCompAudioProcessor::createParameterLayout() {
 		params.at(Names::Bypassed_Low_Band),
 		params.at(Names::Bypassed_Low_Band),
 		false));
+
+	layout.add(std::make_unique<AudioParameterFloat>(
+		params.at(Names::Low_Mid_Crossover_Freq),
+		params.at(Names::Low_Mid_Crossover_Freq),
+		NormalisableRange<float>(20, 20000, 1, 1),
+		500.f));
 
 	return layout;
 }
