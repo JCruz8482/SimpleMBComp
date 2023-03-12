@@ -34,8 +34,8 @@ SimpleMBCompAudioProcessor::SimpleMBCompAudioProcessor()
 	};
 
 	floatHelper(compressor.attack, Names::Attack_Low_Band);
-	floatHelper(compressor.attack, Names::Release_Low_Band);
-	floatHelper(compressor.attack, Names::Threshold_Low_Band);
+	floatHelper(compressor.release, Names::Release_Low_Band);
+	floatHelper(compressor.threshold, Names::Threshold_Low_Band);
 
 	auto choiceHelper = [&apvts = this->apvts, &params](auto& param, const auto& paramName)
 	{
