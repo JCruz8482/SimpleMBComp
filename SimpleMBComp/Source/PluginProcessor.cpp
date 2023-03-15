@@ -61,9 +61,17 @@ SimpleMBCompAudioProcessor::SimpleMBCompAudioProcessor()
 		jassert(param != nullptr);
 	};
 
-	boolHelper(lowBandComp.bypassed, Names::Bypassed_Low_Band);
-	boolHelper(midBandComp.bypassed, Names::Bypassed_Mid_Band);
-	boolHelper(highBandComp.bypassed, Names::Bypassed_High_Band);
+	boolHelper(lowBandComp.isBypassed, Names::Bypassed_Low_Band);
+	boolHelper(midBandComp.isBypassed, Names::Bypassed_Mid_Band);
+	boolHelper(highBandComp.isBypassed, Names::Bypassed_High_Band);
+
+	boolHelper(lowBandComp.isMuted, Names::Mute_Low_Band);
+	boolHelper(midBandComp.isMuted, Names::Mute_Mid_Band);
+	boolHelper(highBandComp.isMuted, Names::Mute_High_Band);
+
+	boolHelper(lowBandComp.isSoloed, Names::Solo_Low_Band);
+	boolHelper(midBandComp.isSoloed, Names::Solo_Mid_Band);
+	boolHelper(highBandComp.isSoloed, Names::Solo_High_Band);
 
 	floatHelper(lowMidCrossover, Names::Low_Mid_Crossover_Freq);
 	floatHelper(midHighCrossover, Names::Mid_High_Crossover_Freq);
@@ -246,9 +254,37 @@ void SimpleMBCompAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 		}
 	};
 
-	addFilterBand(buffer, filterBuffers[0]);
-	addFilterBand(buffer, filterBuffers[1]);
-	addFilterBand(buffer, filterBuffers[2]);
+	bool isAnySoloed = false;
+
+	for (auto& comp : compressors)
+	{
+		if (comp.isSoloed->get())
+		{
+			isAnySoloed = true;
+			break;
+		}
+	}
+
+	if (isAnySoloed)
+	{
+		for (size_t i = 0; i < compressors.size(); ++i)
+		{
+			if (compressors[i].isSoloed->get())
+			{
+				addFilterBand(buffer, filterBuffers[i]);
+			}
+		}
+	}
+	else
+	{
+		for (size_t i = 0; i < compressors.size(); ++i)
+		{
+			if (!compressors[i].isMuted->get())
+			{
+				addFilterBand(buffer, filterBuffers[i]);
+			}
+		}
+	}
 }
 
 //==============================================================================
@@ -295,7 +331,7 @@ SimpleMBCompAudioProcessor::createParameterLayout() {
 	static const float default_threshold = 0.f;
 	static const float default_attack = 50.f;
 	static const float default_release = 250.f;
-	static const float default_is_bypassed = false;
+	static const float isActive = false;
 	static const float default_low_mid_crossover = 500.f;
 	static const float default_mid_high_crossover = 2000.f;
 	static const std::vector<double> ratios = std::vector<double>{ 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 10, 15, 20, 50, 100 };
@@ -375,15 +411,41 @@ SimpleMBCompAudioProcessor::createParameterLayout() {
 	layout.add(std::make_unique<AudioParameterBool>(
 		params.at(Names::Bypassed_Low_Band),
 		params.at(Names::Bypassed_Low_Band),
-		default_is_bypassed));
+		isActive));
 	layout.add(std::make_unique<AudioParameterBool>(
 		params.at(Names::Bypassed_Mid_Band),
 		params.at(Names::Bypassed_Mid_Band),
-		default_is_bypassed));
+		isActive));
 	layout.add(std::make_unique<AudioParameterBool>(
 		params.at(Names::Bypassed_High_Band),
 		params.at(Names::Bypassed_High_Band),
-		default_is_bypassed));
+		isActive));
+
+	layout.add(std::make_unique<AudioParameterBool>(
+		params.at(Names::Mute_Low_Band),
+		params.at(Names::Mute_Low_Band),
+		isActive));
+	layout.add(std::make_unique<AudioParameterBool>(
+		params.at(Names::Mute_Mid_Band),
+		params.at(Names::Mute_Mid_Band),
+		isActive));
+	layout.add(std::make_unique<AudioParameterBool>(
+		params.at(Names::Mute_High_Band),
+		params.at(Names::Mute_High_Band),
+		isActive));
+
+	layout.add(std::make_unique<AudioParameterBool>(
+		params.at(Names::Solo_Low_Band),
+		params.at(Names::Solo_Low_Band),
+		isActive));
+	layout.add(std::make_unique<AudioParameterBool>(
+		params.at(Names::Solo_Mid_Band),
+		params.at(Names::Solo_Mid_Band),
+		isActive));
+	layout.add(std::make_unique<AudioParameterBool>(
+		params.at(Names::Solo_High_Band),
+		params.at(Names::Solo_High_Band),
+		isActive));
 
 	layout.add(std::make_unique<AudioParameterFloat>(
 		params.at(Names::Low_Mid_Crossover_Freq),
