@@ -93,7 +93,7 @@ struct CompressorBand
 	AudioParameterFloat* attack{ nullptr };
 	AudioParameterFloat* release{ nullptr };
 	AudioParameterFloat* threshold{ nullptr };
-	AudioParameterChoice* ratio{ nullptr };
+	AudioParameterFloat* ratio{ nullptr };
 	AudioParameterBool* isBypassed{ nullptr };
 	AudioParameterBool* isMuted{ nullptr };
 	AudioParameterBool* isSoloed{ nullptr };
@@ -108,7 +108,7 @@ struct CompressorBand
 		compressor.setAttack(attack->get());
 		compressor.setRelease(release->get());
 		compressor.setThreshold(threshold->get());
-		compressor.setRatio(ratio->getCurrentChoiceName().getFloatValue());
+		compressor.setRatio(ratio->get());
 	}
 
 	void process(AudioBuffer<float>& buffer)

@@ -45,15 +45,9 @@ SimpleMBCompAudioProcessor::SimpleMBCompAudioProcessor()
 	floatHelper(highBandComp.release, Names::Release_High_Band);
 	floatHelper(highBandComp.threshold, Names::Threshold_High_Band);
 
-	auto choiceHelper = [&apvts = this->apvts, &params](auto& param, const auto& paramName)
-	{
-		param = dynamic_cast<AudioParameterChoice*>(apvts.getParameter(params.at(paramName)));
-		jassert(param != nullptr);
-	};
-
-	choiceHelper(lowBandComp.ratio, Names::Ratio_Low_Band);
-	choiceHelper(midBandComp.ratio, Names::Ratio_Mid_Band);
-	choiceHelper(highBandComp.ratio, Names::Ratio_High_Band);
+	floatHelper(lowBandComp.ratio, Names::Ratio_Low_Band);
+	floatHelper(midBandComp.ratio, Names::Ratio_Mid_Band);
+	floatHelper(highBandComp.ratio, Names::Ratio_High_Band);
 
 	auto boolHelper = [&apvts = this->apvts, &params](auto& param, const auto& paramName)
 	{
@@ -324,21 +318,18 @@ SimpleMBCompAudioProcessor::createParameterLayout() {
 
 	using namespace Params;
 
-	static const NormalisableRange<float> threshold_range = NormalisableRange<float>(-60.f, 12.f, 1.f, 1.f);
+	static const NormalisableRange<float> threshold_range = NormalisableRange<float>(-60, 12, 1, 1);
 	static const NormalisableRange<float> attack_release_range = NormalisableRange<float>(5, 500, 1, 1);
 	static const NormalisableRange<float> low_mid_crossover_range = NormalisableRange<float>(20, 999, 1, 1);
 	static const NormalisableRange<float> mid_high_crossover_range = NormalisableRange<float>(1000, 20000, 1, 1);
-	static const float default_threshold = 0.f;
-	static const float default_attack = 50.f;
-	static const float default_release = 250.f;
+	static const NormalisableRange<float> ratio_range = NormalisableRange<float>(1, 100, 0.01f, 0.35f);
+	static const float default_threshold = 0;
+	static const float default_attack = 50;
+	static const float default_release = 250;
 	static const float isActive = false;
-	static const float default_low_mid_crossover = 500.f;
-	static const float default_mid_high_crossover = 2000.f;
-	static const std::vector<double> ratios = std::vector<double>{ 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 10, 15, 20, 50, 100 };
-	juce::StringArray ratio_strings;
-	for (auto ratio : ratios) {
-		ratio_strings.add(juce::String(ratio, 1));
-	}
+	static const float default_low_mid_crossover = 600;
+	static const float default_mid_high_crossover = 3500;
+	static const float default_ratio = 2;
 
 	const auto& params = GetParams();
 
@@ -392,21 +383,21 @@ SimpleMBCompAudioProcessor::createParameterLayout() {
 		attack_release_range,
 		default_release));
 
-	layout.add(std::make_unique<AudioParameterChoice>(
+	layout.add(std::make_unique<AudioParameterFloat>(
 		params.at(Names::Ratio_Low_Band),
 		params.at(Names::Ratio_Low_Band),
-		ratio_strings,
-		2));
-	layout.add(std::make_unique<AudioParameterChoice>(
+		ratio_range,
+		default_ratio));
+	layout.add(std::make_unique<AudioParameterFloat>(
 		params.at(Names::Ratio_Mid_Band),
 		params.at(Names::Ratio_Mid_Band),
-		ratio_strings,
-		2));
-	layout.add(std::make_unique<AudioParameterChoice>(
+		ratio_range,
+		default_ratio));
+	layout.add(std::make_unique<AudioParameterFloat>(
 		params.at(Names::Ratio_High_Band),
 		params.at(Names::Ratio_High_Band),
-		ratio_strings,
-		2));
+		ratio_range,
+		default_ratio));
 
 	layout.add(std::make_unique<AudioParameterBool>(
 		params.at(Names::Bypassed_Low_Band),
