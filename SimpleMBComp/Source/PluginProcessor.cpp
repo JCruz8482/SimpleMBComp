@@ -33,6 +33,9 @@ SimpleMBCompAudioProcessor::SimpleMBCompAudioProcessor()
 		jassert(param != nullptr);
 	};
 
+	floatHelper(inputGainParam, Names::Gain_In);
+	floatHelper(outputGainParam, Names::Gain_Out);
+
 	floatHelper(lowBandComp.attack, Names::Attack_Low_Band);
 	floatHelper(lowBandComp.release, Names::Release_Low_Band);
 	floatHelper(lowBandComp.threshold, Names::Threshold_Low_Band);
@@ -148,6 +151,12 @@ void SimpleMBCompAudioProcessor::prepareToPlay(double sampleRate,
 	LP2.prepare(spec);
 	HP2.prepare(spec);
 
+	inputGain.prepare(spec);
+	outputGain.prepare(spec);
+
+	inputGain.setRampDurationSeconds(0.05); //50 ms
+	outputGain.setRampDurationSeconds(0.05);
+
 	for (auto& buffer : filterBuffers)
 	{
 		buffer.setSize(spec.numChannels, samplesPerBlock);
@@ -185,28 +194,10 @@ bool SimpleMBCompAudioProcessor::isBusesLayoutSupported(
 }
 #endif
 
-void SimpleMBCompAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
-	juce::MidiBuffer& midiMessages) {
-	juce::ScopedNoDenormals noDenormals;
-	auto totalNumInputChannels = getTotalNumInputChannels();
-	auto totalNumOutputChannels = getTotalNumOutputChannels();
-
-	// In case we have more outputs than inputs, this code clears any output
-	// channels that didn't contain input data, (because these aren't
-	// guaranteed to be empty - they may contain garbage).
-	// This is here to avoid people getting screaming feedback
-	// when they first compile a plugin, but obviously you don't need to keep
-	// this code if your algorithm always overwrites all the output channels.
-	for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-		buffer.clear(i, 0, buffer.getNumSamples());
-
+void SimpleMBCompAudioProcessor::updateState()
+{
 	for (auto& comp : compressors)
 		comp.updateCompressorSettings();
-
-	for (auto& fb : filterBuffers)
-	{
-		fb = buffer;
-	}
 
 	auto lowMidCutoff = lowMidCrossover->get();
 	LP1.setCutoffFrequency(lowMidCutoff);
@@ -216,6 +207,17 @@ void SimpleMBCompAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 	AP2.setCutoffFrequency(midHighCutoff);
 	LP2.setCutoffFrequency(midHighCutoff);
 	HP2.setCutoffFrequency(midHighCutoff);
+
+	inputGain.setGainDecibels(inputGainParam->get());
+	outputGain.setGainDecibels(outputGainParam->get());
+}
+
+void SimpleMBCompAudioProcessor::splitBands(AudioBuffer<float>& buffer)
+{
+	for (auto& fb : filterBuffers)
+	{
+		fb = buffer;
+	}
 
 	auto fb0Block = AudioBlock<float>(filterBuffers[0]);
 	auto fb1Block = AudioBlock<float>(filterBuffers[1]);
@@ -231,6 +233,28 @@ void SimpleMBCompAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 	filterBuffers[2] = filterBuffers[1];
 	LP2.process(fb1Ctx);
 	HP2.process(fb2Ctx);
+}
+
+void SimpleMBCompAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
+	juce::MidiBuffer& midiMessages) {
+	juce::ScopedNoDenormals noDenormals;
+	auto totalNumInputChannels = getTotalNumInputChannels();
+	auto totalNumOutputChannels = getTotalNumOutputChannels();
+
+	// In case we have more outputs than inputs, this code clears any output
+	// channels that didn't contain input data, (because these aren't
+	// guaranteed to be empty - they may contain garbage).
+	// This is here to avoid people getting screaming feedback
+	// when they first compile a plugin, but obviously you don't need to keep
+	// this code if your algorithm always overwrites all the output channels.
+	for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+		buffer.clear(i, 0, buffer.getNumSamples());
+
+	updateState();
+
+	applyGain(buffer, inputGain);
+
+	splitBands(buffer);
 
 	for (size_t i = 0; i < filterBuffers.size(); ++i)
 		compressors[i].process(filterBuffers[i]);
@@ -279,6 +303,7 @@ void SimpleMBCompAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 			}
 		}
 	}
+	applyGain(buffer, outputGain);
 }
 
 //==============================================================================
@@ -323,6 +348,7 @@ SimpleMBCompAudioProcessor::createParameterLayout() {
 	static const NormalisableRange<float> low_mid_crossover_range = NormalisableRange<float>(20, 999, 1, 1);
 	static const NormalisableRange<float> mid_high_crossover_range = NormalisableRange<float>(1000, 20000, 1, 1);
 	static const NormalisableRange<float> ratio_range = NormalisableRange<float>(1, 100, 0.01f, 0.35f);
+	static const auto gainRange = NormalisableRange<float>(-24, 24, 0.5f, 1);
 	static const float default_threshold = 0;
 	static const float default_attack = 50;
 	static const float default_release = 250;
@@ -330,10 +356,22 @@ SimpleMBCompAudioProcessor::createParameterLayout() {
 	static const float default_low_mid_crossover = 600;
 	static const float default_mid_high_crossover = 3500;
 	static const float default_ratio = 2;
+	static const float default_gain = 0;
 
 	const auto& params = GetParams();
 
 	APVTS::ParameterLayout layout;
+
+	layout.add(std::make_unique<AudioParameterFloat>(
+		params.at(Names::Gain_In),
+		params.at(Names::Gain_In),
+		gainRange,
+		default_gain));
+	layout.add(std::make_unique<AudioParameterFloat>(
+		params.at(Names::Gain_Out),
+		params.at(Names::Gain_Out),
+		gainRange,
+		default_gain));
 
 	layout.add(std::make_unique<AudioParameterFloat>(
 		params.at(Names::Threshold_Low_Band),
